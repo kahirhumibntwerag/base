@@ -1,0 +1,24 @@
+torch
+torchvision
+Pillow  # PIL is included in Pillow
+matplotlib
+scipy
+numpy
+pandas
+scikit-image
+opencv-python-headless
+s3fs
+dask[array]
+zarr==2.18.3
+seaborn
+scikit-learn  # sklearn is part of scikit-learn
+sunpy
+pip
+argparse
+pyyaml
+wandb
+omegaconf
+lightning
+boto3
+brisque
+sunpy[all]
