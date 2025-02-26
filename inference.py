@@ -1,13 +1,132 @@
+import torch.nn as nn
 import torch
-import yaml
-from pathlib import Path
-import matplotlib.pyplot as plt
-import seaborn as sns
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
-from src.metrics import kld_loss
-from src.RRDB import LightningGenerator
 import numpy as np
-import torch.nn.functional as F
+from metrics import kld_loss
+from src.RRDB import LightningGenerator
+import yaml
+import argparse
+from omegaconf import OmegaConf
+class Predictor:
+    def __init__(self):
+        pass
+    @torch.no_grad()
+    def predict(self, x: torch.Tensor, model,batch_size=4, transform=None, inverse_transform=None, device='cuda') -> torch.Tensor:
+        """Generate super-resolved image from input tensor.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape (N, 1, W, H)
+            batch_size (int): Size of batches to process
+            transform (callable): Transform to apply to input tensor
+            inverse_transform (callable): Transform to apply to output tensor
+            device (torch.device): Device to run model on
+            
+        Returns:
+            torch.Tensor: Super-resolved output tensor
+        """
+        self.model = model.eval().to(device)
+        self.images = [] # Reset images list
+        
+        n = x.shape[0]
+        for i in range(0, n, batch_size):
+            batch_end = min(i + batch_size, n)  # Handle last batch
+            batch = x[i:batch_end]  # Use batch_end instead of i+batch_size
+            
+            if transform:
+                batch = transform(batch)
+            
+            batch = batch.to(device)
+            output = self.model.predict(batch) # Use direct call instead of predict
+            
+            if inverse_transform:
+                output = inverse_transform(output)
+            
+            output = output.cpu()
+            self.images.append(output)
+            
+        # Concatenate all batches along dimension 0 (batch dimension)
+        result = torch.cat(self.images, dim=0)
+        self.images = [] # Clear images list
+        return result
+    
+
+class Metrics:
+    def __init__(self):
+        pass
+    
+    def calculate_psnr(self, hr: torch.Tensor, sr: torch.Tensor):
+        """Calculate PSNR between HR and SR images.
+        
+        Args:
+            hr (torch.Tensor): High resolution images of shape (N,1,W,H)
+            sr (torch.Tensor): Super resolved images of shape (N,1,W,H)
+            
+        Returns:
+            list: List of N float values representing PSNR for each image pair
+        """
+        hr = [hr[i].unsqueeze(0) for i in range(hr.shape[0])]
+        sr = [sr[i].unsqueeze(0) for i in range(sr.shape[0])]
+        psnr = list(map(peak_signal_noise_ratio, hr, sr))
+        psnr = [value.item() for value in psnr]
+        return psnr
+
+    def calculate_ssim(self, hr: torch.Tensor, sr: torch.Tensor):
+        """Calculate SSIM between HR and SR images.
+        
+        Args:
+            hr (torch.Tensor): High resolution images of shape (N,1,W,H) 
+            sr (torch.Tensor): Super resolved images of shape (N,1,W,H)
+            
+        Returns:
+            list: List of N float values representing SSIM for each image pair
+        """
+        hr = [hr[i].unsqueeze(0) for i in range(hr.shape[0])]
+        sr = [sr[i].unsqueeze(0) for i in range(sr.shape[0])]
+        ssim = list(map(structural_similarity_index_measure, hr, sr))
+        ssim = [value.item() for value in ssim]
+        return ssim
+
+    def calculate_kld(self, hr: torch.Tensor, sr: torch.Tensor):
+        """Calculate KLD between HR and SR images.
+        
+        Args:
+            hr (torch.Tensor): High resolution images of shape (N,1,W,H)
+            sr (torch.Tensor): Super resolved images of shape (N,1,W,H)
+            
+        Returns:
+            list: List of N float values representing KLD for each image pair
+        """
+        hr = [hr[i].unsqueeze(0) for i in range(hr.shape[0])]
+        sr = [sr[i].unsqueeze(0) for i in range(sr.shape[0])]
+        kld = list(map(kld_loss, hr, sr))
+        return kld
+    
+    def calculate_metrics(self, hr: torch.Tensor, sr: torch.Tensor):
+        """Calculate PSNR, SSIM, and KLD between HR and SR images.
+        
+        Args:
+            hr (torch.Tensor): High resolution images of shape (N,1,W,H)
+            sr (torch.Tensor): Super resolved images of shape (N,1,W,H)
+            
+        Returns:
+            dict: Dictionary containing lists of metrics for each image pair
+                  with keys 'psnr', 'ssim', and 'kld'
+        """
+        psnr = self.calculate_psnr(hr, sr)
+        ssim = self.calculate_ssim(hr, sr)
+        kld = self.calculate_kld(hr, sr)
+        return {
+            'psnr': psnr,
+            'ssim': ssim, 
+            'kld': kld
+        }, {
+            'psnr': np.mean(psnr),
+            'ssim': np.mean(ssim), 
+            'kld': np.mean(kld)
+        }
+
+
+
 
 def rescalee(images):
     """Rescale tensor using log normalization"""
@@ -38,167 +157,31 @@ def load_model(config_path, checkpoint_path):
     
     return model
 
-def calculate_metrics(sr_batch, hr_batch):
-    """
-    Calculate metrics for batches of images.
+def parse_args():
+    parser = argparse.ArgumentParser(description="Test the model with optional config overrides.")
     
-    Args:
-        sr_batch: Super-resolved images tensor [B, H, W]
-        hr_batch: High-resolution ground truth tensor [B, H, W]
+    # Required arguments
+    parser.add_argument('--config', type=str, default='config.yml', help='Path to config file')
+    parser.add_argument('--model_path', type=str, default='model.pt', help='Path to model checkpoint')
+    parser.add_argument('--lr_path', type=str, default='lr.pt', help='Path to LR data')
+    parser.add_argument('--hr_path', type=str, default='hr.pt', help='Path to HR data')
+    parser.add_argument('--batch_size', type=int, default=4, help='Batch size for prediction')
+    parser.add_argument('--opt', nargs='+', default=None, help='Override config options')
     
-    Returns:
-        dict: Dictionary containing lists of metrics for each image
-    """
-    metrics_dict = {
-        'PSNR': [],
-        'SSIM': [],
-        'KLD': []
-    }
-    
-    # Process each image in the batch
-    for sr, hr in zip(sr_batch, hr_batch):
-        # Add channel dimension for all metrics (BxCxHxW format)
-        sr_formatted = sr.unsqueeze(0).unsqueeze(0)  # [1, 1, H, W]
-        hr_formatted = hr.unsqueeze(0).unsqueeze(0)  # [1, 1, H, W]
-        
-        # Calculate metrics
-        psnr = peak_signal_noise_ratio(sr_formatted, hr_formatted)
-        ssim = structural_similarity_index_measure(sr_formatted, hr_formatted)
-        
-        # For KLD, ensure tensors are in [C, H, W] format
-        sr_kld = sr_formatted.squeeze(0)  # [1, H, W]
-        hr_kld = hr_formatted.squeeze(0)  # [1, H, W]
-        kld = kld_loss(hr_kld, sr_kld)
-        
-        # Store metrics
-        metrics_dict['PSNR'].append(psnr.item())
-        metrics_dict['SSIM'].append(ssim.item())
-        metrics_dict['KLD'].append(kld)
-    
-    return metrics_dict
-
-def process_dataset(model, data_path, device='cuda', batch_size=4):
-    """
-    Process dataset and collect metrics.
-    
-    Args:
-        model: Trained model
-        data_path: Path to file containing HR-LR pairs
-        device: Device to use for processing
-        batch_size: Batch size for processing
-    """
-    # Load data with weights_only=True to address warning
-    print(f"Loading data from {data_path}")
-    data = torch.load(data_path, weights_only=True)
-    lr_images = data['lr']  # [1000, 128, 128]
-    hr_images = data['hr']  # [1000, 512, 512]
-    
-    num_images = lr_images.shape[0]
-    metrics_dict = {
-        'PSNR': [],
-        'SSIM': [],
-        'KLD': []
-    }
-    
-    # Process in batches
-    for i in range(0, num_images, batch_size):
-        batch_end = min(i + batch_size, num_images)
-        print(f"Processing images {i} to {batch_end-1}")
-        
-        try:
-            # Get batch
-            lr_batch = lr_images[i:batch_end].to(device)
-            hr_batch = hr_images[i:batch_end].to(device)
-            
-            # Add channel dimension and apply rescalee for model input
-            lr_batch = lr_batch.unsqueeze(1)  # [B, 1, 128, 128]
-            lr_batch = rescalee(lr_batch)
-            
-            # Generate SR images
-            with torch.no_grad():
-                sr_batch = model(lr_batch)
-            
-            # Inverse rescale SR images back to original range
-            sr_batch = inverse_rescalee(sr_batch)
-            
-            # Ensure values are in valid range
-            sr_batch = torch.clamp(sr_batch, min=0.0)
-            
-            # Move to CPU for metric calculation
-            sr_batch = sr_batch.cpu()
-            hr_batch = hr_batch.cpu()
-            
-            # Calculate metrics
-            batch_metrics = calculate_metrics(sr_batch.squeeze(1), hr_batch)
-            
-            # Check for invalid metrics
-            for metric_name, values in batch_metrics.items():
-                valid_values = [v for v in values if not torch.isnan(torch.tensor(v)) and not torch.isinf(torch.tensor(v))]
-                if valid_values:
-                    metrics_dict[metric_name].extend(valid_values)
-            
-            # Print progress for this batch
-            batch_means = {k: np.mean(metrics_dict[k][-len(valid_values):]) 
-                         for k in metrics_dict if metrics_dict[k]}
-            print(f"Batch metrics: ", end='')
-            for metric_name, value in batch_means.items():
-                print(f"{metric_name}={value:.3f}", end=', ')
-            print()
-            
-        except Exception as e:
-            print(f"Error processing batch {i} to {batch_end-1}: {str(e)}")
-            continue
-    
-    # Calculate and print final averages (excluding NaN and inf values)
-    print("\nFinal Average Metrics:")
-    for metric_name in metrics_dict:
-        values = metrics_dict[metric_name]
-        valid_values = [v for v in values if not np.isnan(v) and not np.isinf(v)]
-        if valid_values:
-            mean = np.mean(valid_values)
-            std = np.std(valid_values)
-            print(f"{metric_name}: {mean:.3f} ± {std:.3f}")
-        else:
-            print(f"{metric_name}: No valid values")
-    
-    return metrics_dict
-
-def main():
-    # Paths
-    config_path = 'src/config.yml'
-    checkpoint_path = 'checkpoints/last.ckpt'
-    data_path = 'src/data.pt'  # File containing HR-LR pairs
-    output_dir = Path('results')
-    output_dir.mkdir(exist_ok=True)
-    
-    # Device
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {device}")
-    
-    # Load model
-    print("Loading model...")
-    model = load_model(config_path, checkpoint_path)
-    model = model.to(device)
-    
-    # Process dataset
-    metrics = process_dataset(model, data_path, device, batch_size=4)
-    
-    # Save metrics
-    metrics_path = output_dir / 'metrics.txt'
-    with open(metrics_path, 'w') as f:
-        for metric_name, values in metrics.items():
-            mean = np.mean(values)
-            std = np.std(values)
-            f.write(f'{metric_name}: {mean:.4f} ± {std:.4f}\n')
-    
-    # Plot distributions
-    fig, axes = plt.subplots(3, 1, figsize=(10, 15))
-    for ax, (metric_name, values) in zip(axes, metrics.items()):
-        sns.histplot(values, ax=ax, kde=True)
-        ax.set_title(f'Distribution of {metric_name}')
-    plt.tight_layout()
-    fig.savefig(output_dir / 'metrics_distribution.png')
-    plt.close(fig)
+    return parser.parse_args()
 
 if __name__ == '__main__':
-    main() 
+    args = parse_args()
+    
+    predictor = Predictor()
+    metrics = Metrics()
+    model = load_model(args.config, args.model_path)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    lr = torch.load(args.lr_path)
+    hr = torch.load(args.hr_path)
+    sr = predictor.predict(lr, model, batch_size=args.batch_size, device=device)
+
+    metrics_dict, metrics_mean = metrics.calculate_metrics(hr, sr)
+    print(metrics_dict)
+    print(metrics_mean)
