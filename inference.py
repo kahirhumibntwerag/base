@@ -140,18 +140,15 @@ class Model:
             raise ValueError(f"Invalid model name: {model_name}")
         return self.model
     
-    def instantiate_model(self, model_name, config_path):
-        # Load config from YAML file
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+    def instantiate_model(self,config):
+
+        if config.model_name not in self.models:
+            raise ValueError(f"Invalid model name: {config.model_name}. Available models: {list(self.models.keys())}")
             
-        if model_name not in self.models:
-            raise ValueError(f"Invalid model name: {model_name}. Available models: {list(self.models.keys())}")
-            
-        if model_name == 'rrdb':
+        if config.model_name == 'rrdb':
             self.model = LightningGenerator(config)
         else:
-            raise ValueError(f"Model {model_name} is not yet implemented")
+            raise ValueError(f"Model {config.model_name} is not yet implemented")
             
         return self.model
 
