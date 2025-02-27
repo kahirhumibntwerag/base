@@ -193,7 +193,7 @@ if __name__ == '__main__':
     
     predictor = Predictor()
     metrics = Metrics()
-    model = load_model(args.config, args.model_path)
+    model = load_model(args.model_name, args.model_path)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lr = torch.load(args.lr_path)
