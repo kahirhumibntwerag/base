@@ -2,11 +2,14 @@ import torch.nn as nn
 import torch
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
 import numpy as np
+import lightning as L
 from metrics import kld_loss
 from src.RRDB import LightningGenerator
 import yaml
 import argparse
 from omegaconf import OmegaConf
+from src.RRDB import LightningGenerator
+
 class Predictor:
     def __init__(self):
         pass
@@ -125,8 +128,32 @@ class Metrics:
             'kld': np.mean(kld)
         }
 
-
-
+class Model:
+    def __init__(self):
+        self.models = ['rrdb', 'esrgan', 'ldm']
+    
+    def load_model(self, model_name,checkpoint_path):
+        self.model = self.models[model_name]
+        if model_name == 'rrdb':
+            self.model = LightningGenerator.load_from_checkpoint(checkpoint_path)
+        else:
+            raise ValueError(f"Invalid model name: {model_name}")
+        return self.model
+    
+    def instantiate_model(self, model_name, config_path):
+        # Load config from YAML file
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+            
+        if model_name not in self.models:
+            raise ValueError(f"Invalid model name: {model_name}. Available models: {list(self.models.keys())}")
+            
+        if model_name == 'rrdb':
+            self.model = LightningGenerator(config)
+        else:
+            raise ValueError(f"Model {model_name} is not yet implemented")
+            
+        return self.model
 
 def rescalee(images):
     """Rescale tensor using log normalization"""
@@ -145,23 +172,17 @@ def inverse_rescalee(images_normalized):
     images_clipped = torch.exp(images_log)
     return images_clipped
 
-def load_model(config_path, checkpoint_path):
+def load_model(model_name,checkpoint_path):
     """Load the trained model from checkpoint."""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    model = LightningGenerator(config)
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint['state_dict'])
+    model = Model().load_model(model_name, checkpoint_path)
     model.eval()
-    
     return model
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Test the model with optional config overrides.")
     
     # Required arguments
-    parser.add_argument('--config', type=str, default='config.yml', help='Path to config file')
+    parser.add_argument('--model_name', type=str, default='rrdb', help='the model name')
     parser.add_argument('--model_path', type=str, default='model.pt', help='Path to model checkpoint')
     parser.add_argument('--lr_path', type=str, default='lr.pt', help='Path to LR data')
     parser.add_argument('--hr_path', type=str, default='hr.pt', help='Path to HR data')

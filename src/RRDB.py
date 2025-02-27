@@ -81,6 +81,7 @@ class LightningGenerator(L.LightningModule):
         self.generator = Generator(**config['generator'])
         self.validation_step_outputs = []
     
+
     def forward(self, x):
         return self.generator(x)
     
@@ -146,3 +147,21 @@ class LightningGenerator(L.LightningModule):
     def predict(self, lr):
         return self(lr)
     
+    @classmethod
+    def load_from_checkpoint(cls, checkpoint_path, config=None, strict=True, **kwargs):
+        """
+        Load model from checkpoint with optional config override
+        Args:
+            checkpoint_path (str): Path to the checkpoint file
+            config (dict, optional): New configuration to override the saved one
+            strict (bool): Whether to strictly enforce that the keys in checkpoint match
+        """
+        if config is not None:
+            # Load the checkpoint with custom config
+            checkpoint = torch.load(checkpoint_path)
+            if 'hyper_parameters' in checkpoint:
+                checkpoint['hyper_parameters'] = config
+            return super().load_from_checkpoint(checkpoint_path, strict=strict, **kwargs)
+        else:
+            # Load the checkpoint normally
+            return super().load_from_checkpoint(checkpoint_path, strict=strict, **kwargs)

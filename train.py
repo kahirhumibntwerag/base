@@ -11,7 +11,7 @@ import torch.nn.functional as F
 import numpy as np
 import argparse
 from omegaconf import OmegaConf
-
+from inference import Model
 from src.RRDB import LightningGenerator
 from src.datamodule import DataModule
 
@@ -37,6 +37,9 @@ def parse_and_merge_config(config_path='config.yml'):
     
     # Parse known arguments and handle unknown arguments separately
     parser.add_argument('--config', type=str, default=config_path, help='Path to config file')
+    parser.add_argument('--model_name', type=str, default='rrdb', help='model name')
+    parser.add_argument('--model_path', type=str, default='checkpoints/model.pt', help='model path')
+
     parser.add_argument('--opt', nargs='+', default=None, help='Override config options, e.g., data.batch_size=64')
     args = parser.parse_args()
     
@@ -66,11 +69,13 @@ def train():
     )
 
     # Define transforms with power transform instead of rescalee
-    transform = None
+    transform = transforms.Compose([
+        rescalee
+    ])
     
     # Initialize DataModule and Model with transforms
     datamodule = DataModule(**OmegaConf.to_container(config.data), transform=transform)
-    model = LightningGenerator(config)
+    model = Model().instantiate_model(config.model_name,config.model_path)
     wandb_logger.watch(model, log='all')
     
     # Callbacks
