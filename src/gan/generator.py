@@ -86,8 +86,7 @@ class GAN(L.LightningModule):
         self.save_hyperparameters()
         self.generator = Generator(**configs['generator'])
         self.discriminator = Discriminator(**configs['discriminator'])
-        self.loss = Loss(**configs['loss'])
-        
+        self.loss = Loss(self.discriminator,**configs['loss'])        
         # Add label smoothing parameters
         self.real_label_val = configs['label_smoothing']['real_val']  # Instead of 1.0
         self.fake_label_val = configs['label_smoothing']['fake_val']  # Instead of 0.0

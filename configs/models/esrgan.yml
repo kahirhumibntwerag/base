@@ -17,6 +17,7 @@
       fake_val: 0.1
 
     loss:
-      adversarial_weight: 0.001  # alpha
-      perceptual_weight: 1.0     # beta
-      l1_weight: 0.01            # gamma
+      alpha: 0.001
+      beta: 1.0
+      gamma: 0.01
+        # gamma

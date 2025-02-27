@@ -8,6 +8,7 @@ import yaml
 import argparse
 from omegaconf import OmegaConf
 from src.rrdb.RRDB import LightningGenerator
+from src.gan.generator import GAN
 
 class Predictor:
     def __init__(self):
@@ -138,16 +139,24 @@ class Model:
             raise ValueError(f"Invalid model name: {model_name}")
         return self.model
     
-    def instantiate_model(self,config):
-
-        if config.model_name not in self.models:
-            raise ValueError(f"Invalid model name: {config.model_name}. Available models: {self.models}")
-            
+    def instantiate_model(self, config):
+        """
+        Instantiate the appropriate model based on config
+        Args:
+            config: Configuration object containing model settings
+        Returns:
+            Instantiated model
+        """
+        if config.model.name not in self.models:
+            raise ValueError(f"Invalid model name: {config.model.name}. Available models: {self.models}")
+        
         if config.model_name == 'rrdb':
             self.model = LightningGenerator(config)
+        elif config.model_name == 'esrgan':
+            self.model = GAN(config)
         else:
-            raise ValueError(f"Model {config.model_name} is not yet implemented")
-            
+            raise ValueError(f"Model {config.model.name} is not yet implemented")
+        
         return self.model
 
 def rescalee(images):
