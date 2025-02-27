@@ -5,12 +5,6 @@ trainer:
   max_epochs: 1000
   precision: '16-mixed'
 
-generator:
-  in_channels: 1
-  initial_channel: 64
-  num_rrdb_blocks: 16
-  upscale_factor: 4
-  lr: 0.0001
 
 data:
   train_path: "data/train.pt"
@@ -27,3 +21,6 @@ callbacks:
     monitor: "val_loss"
     mode: "min"
     save_last: True
+  
+  image_logger:
+    log_freq: 100  # Log images every 100 batches

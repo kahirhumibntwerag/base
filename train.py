@@ -12,8 +12,8 @@ import numpy as np
 import argparse
 from omegaconf import OmegaConf
 from inference import Model
-from src.RRDB import LightningGenerator
-from src.datamodule import DataModule
+from rrdb.src.datamodule import DataModule
+from src.callbacks import ImageLoggingCallback
 
 def rescalee(images):
     images_clipped = torch.clamp(images, min=1)
@@ -31,63 +31,80 @@ def inverse_rescalee(images_normalized):
 
     return images_clipped
 
-def parse_and_merge_config(config_path='config.yml'):
-    # Create a parser to accept arguments from the command line
-    parser = argparse.ArgumentParser(description="Train the model with optional config overrides.")
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, required=True, choices=['rrdb', 'esrgan'],
+                      help='Model architecture to use')
+    parser.add_argument('--config', type=str, default='configs/config.yml',
+                      help='Optional path to override default configs')
+    parser.add_argument('--opt', nargs='+', default=None,
+                      help='Override config options (e.g., trainer.max_epochs=100)')
+    return parser.parse_args()
+
+def load_and_merge_configs(args):
+    """
+    Load and merge configurations from all sources:
+    1. Base config (config.yml)
+    2. Model-specific config (models/{model}.yml)
+    3. Custom config file (optional)
+    4. Command line overrides (--opt)
+    """
+    # Load base config
+    base_config = OmegaConf.load(args.config)
     
-    # Parse known arguments and handle unknown arguments separately
-    parser.add_argument('--config', type=str, default=config_path, help='Path to config file')
-    parser.add_argument('--model_name', type=str, default='rrdb', help='model name')
-    parser.add_argument('--opt', nargs='+', default=None, help='Override config options, e.g., data.batch_size=64')
-    args = parser.parse_args()
+    # Load model-specific config
+    model_config_path = Path(f'configs/models/{args.model}.yml')
+    if not model_config_path.exists():
+        raise ValueError(f"No config found for model: {args.model}")
+    model_config = OmegaConf.load(model_config_path)
     
-    # Load the configuration from the YAML file
-    with open(args.config, 'r') as f:
-        yaml_config = yaml.safe_load(f)
+    # Merge base and model configs
+    config = OmegaConf.merge(base_config, model_config)
     
-    # Convert the loaded YAML config into an OmegaConf object
-    cfg = OmegaConf.create(yaml_config)
+    # Merge custom config if provided
+    if args.config:
+        custom_config = OmegaConf.load(args.config)
+        config = OmegaConf.merge(config, custom_config)
     
-    # If there are command-line options, merge them with the config
+    # Apply command-line overrides
     if args.opt:
-        cli_conf = OmegaConf.from_dotlist(args.opt)
-        cfg = OmegaConf.merge(cfg, cli_conf)
+        cli_config = OmegaConf.from_dotlist(args.opt)
+        config = OmegaConf.merge(config, cli_config)
     
-    # Return the final configuration
-    return cfg
+    return config
 
 def train():
-    # Parse and merge config
-    config = parse_and_merge_config()
+    # Parse command line arguments
+    args = parse_args()
+    
+    # Load and merge all configs
+    config = load_and_merge_configs(args)
     
     # Initialize wandb logger
     wandb_logger = WandbLogger(
-        **OmegaConf.to_container(config.logger),
+        project=config.logger.project,
+        name=f"{args.model}-{wandb.util.generate_id()}",
         config=OmegaConf.to_container(config)
     )
 
-    # Define transforms with power transform instead of rescalee
-    transform = None
-    
-    # Initialize DataModule and Model with transforms
-    datamodule = DataModule(**OmegaConf.to_container(config.data), transform=transform)
-    model = Model().instantiate_model(config)
-    wandb_logger.watch(model, log='all')
-    
-    # Callbacks
+    # Initialize callbacks
     callbacks = [
-        ModelCheckpoint(**OmegaConf.to_container(config.callbacks.checkpoint)),
+        ModelCheckpoint(**config.callbacks.checkpoint),
+        ImageLoggingCallback(**config.callbacks.image_logger)
     ]
 
-    # Initialize Trainer
+    # Initialize trainer
     trainer = L.Trainer(
-        **OmegaConf.to_container(config.trainer),
+        **config.trainer,
         logger=wandb_logger,
         callbacks=callbacks
     )
+    model = Model().instantiate_model(config.model)
 
-    # Train the model
-    trainer.fit(model, datamodule=datamodule)
+    datamodule = DataModule(config.data)
+
+    # Train model
+    trainer.fit(model, datamodule)
 
 if __name__ == "__main__":
     train()

@@ -3,12 +3,11 @@ import torch
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
 import numpy as np
 import lightning as L
-from metrics import kld_loss
-from src.RRDB import LightningGenerator
+from rrdb.src.metrics import kld_loss
 import yaml
 import argparse
 from omegaconf import OmegaConf
-from src.RRDB import LightningGenerator
+from rrdb.src.rrdb.RRDB import LightningGenerator
 
 class Predictor:
     def __init__(self):

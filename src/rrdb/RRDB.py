@@ -96,49 +96,9 @@ class LightningGenerator(L.LightningModule):
         lr, hr = batch
         sr = self(lr)
         loss = F.mse_loss(sr, hr)
-        self.log('val_loss', loss)
-        
-        # Store the first batch for visualization
-        if batch_idx == 0:
-            self.validation_step_outputs = {'lr': lr, 'hr': hr, 'sr': sr}
-        
+        self.log('val_loss', loss)      
         return loss
 
-    def on_validation_epoch_end(self):
-        # Use the stored batch
-        if not self.validation_step_outputs:
-            return
-            
-        lr = self.validation_step_outputs['lr']
-        hr = self.validation_step_outputs['hr']
-        sr = self.validation_step_outputs['sr']
-        
-        num_images = min(3, len(lr))
-        
-        def tensor_to_image(tensor):
-            img = tensor.cpu().float().squeeze().numpy()
-            
-            # Create matplotlib figure with colormap
-            plt.figure(figsize=(5,5))
-            plt.imshow(img, cmap='afmhot')
-            plt.axis('off')
-            
-            # Convert to wandb.Image
-            image = wandb.Image(plt)
-            plt.close()
-            
-            return image
-        
-        # Create and log images
-        for i in range(num_images):
-            self.logger.experiment.log({
-                f"validation/image_{i}/lr": tensor_to_image(lr[i]),
-                f"validation/image_{i}/hr": tensor_to_image(hr[i]),
-                f"validation/image_{i}/sr": tensor_to_image(sr[i])
-            })
-        
-        # Clear the outputs
-        self.validation_step_outputs.clear()
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.generator.lr)
