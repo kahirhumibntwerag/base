@@ -132,7 +132,6 @@ class Model:
         self.models = ['rrdb', 'esrgan', 'ldm']
     
     def load_model(self, model_name,checkpoint_path):
-        self.model = self.models[model_name]
         if model_name == 'rrdb':
             self.model = LightningGenerator.load_from_checkpoint(checkpoint_path)
         else:
@@ -142,7 +141,7 @@ class Model:
     def instantiate_model(self,config):
 
         if config.model_name not in self.models:
-            raise ValueError(f"Invalid model name: {config.model_name}. Available models: {list(self.models.keys())}")
+            raise ValueError(f"Invalid model name: {config.model_name}. Available models: {self.models}")
             
         if config.model_name == 'rrdb':
             self.model = LightningGenerator(config)

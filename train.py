@@ -50,7 +50,7 @@ def load_and_merge_configs(args):
     4. Command line overrides (--opt)
     """
     # Load base config
-    base_config = OmegaConf.load(args.config)
+    base_config = OmegaConf.load('configs/config.yml')
     
     # Load model-specific config
     model_config_path = Path(f'configs/models/{args.model}.yml')
@@ -101,7 +101,7 @@ def train():
     )
     model = Model().instantiate_model(config.model)
 
-    datamodule = DataModule(config.data)
+    datamodule = DataModule(**config.data)
 
     # Train model
     trainer.fit(model, datamodule)
