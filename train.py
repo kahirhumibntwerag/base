@@ -12,7 +12,7 @@ import numpy as np
 import argparse
 from omegaconf import OmegaConf
 from inference import Model
-from rrdb.src.datamodule import DataModule
+from src.datamodule import DataModule
 from src.callbacks import ImageLoggingCallback
 
 def rescalee(images):
@@ -35,7 +35,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True, choices=['rrdb', 'esrgan'],
                       help='Model architecture to use')
-    parser.add_argument('--config', type=str, default='configs/config.yml',
+    parser.add_argument('--config', type=str, default=None,
                       help='Optional path to override default configs')
     parser.add_argument('--opt', nargs='+', default=None,
                       help='Override config options (e.g., trainer.max_epochs=100)')

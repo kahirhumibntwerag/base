@@ -7,7 +7,7 @@ from rrdb.src.metrics import kld_loss
 import yaml
 import argparse
 from omegaconf import OmegaConf
-from rrdb.src.rrdb.RRDB import LightningGenerator
+from src.rrdb.RRDB import LightningGenerator
 
 class Predictor:
     def __init__(self):
