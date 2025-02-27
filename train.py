@@ -33,7 +33,7 @@ def inverse_rescalee(images_normalized):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, required=True, choices=['rrdb', 'esrgan'],
+    parser.add_argument('--model_name', type=str, required=True, choices=['rrdb', 'esrgan'],
                       help='Model architecture to use')
     parser.add_argument('--config', type=str, default=None,
                       help='Optional path to override default configs')
@@ -53,10 +53,15 @@ def load_and_merge_configs(args):
     base_config = OmegaConf.load('configs/config.yml')
     
     # Load model-specific config
-    model_config_path = Path(f'configs/models/{args.model}.yml')
+    model_config_path = Path(f'configs/models/{args.model_name}.yml')
     if not model_config_path.exists():
-        raise ValueError(f"No config found for model: {args.model}")
+        raise ValueError(f"No config found for model: {args.model_name}")
     model_config = OmegaConf.load(model_config_path)
+    
+    # Add model_name to model config
+    if 'model' not in model_config:
+        model_config.model = {}
+    model_config.model.model_name = args.model_name
     
     # Merge base and model configs
     config = OmegaConf.merge(base_config, model_config)
@@ -83,7 +88,7 @@ def train():
     # Initialize wandb logger
     wandb_logger = WandbLogger(
         project=config.logger.project,
-        name=f"{args.model}-{wandb.util.generate_id()}",
+        name=f"{args.model_name}-{wandb.util.generate_id()}",
         config=OmegaConf.to_container(config)
     )
 

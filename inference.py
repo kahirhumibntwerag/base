@@ -3,7 +3,7 @@ import torch
 from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
 import numpy as np
 import lightning as L
-from rrdb.src.metrics import kld_loss
+from src.metrics import kld_loss
 import yaml
 import argparse
 from omegaconf import OmegaConf
