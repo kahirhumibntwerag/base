@@ -5,9 +5,8 @@ import numpy as np
 import lightning as L
 import wandb
 import matplotlib.pyplot as plt
-from discriminator import Discriminator
-from generator import Generator
-from loss import Loss
+from src.gan.discriminator import Discriminator
+from src.gan.loss import Loss
 import lightning as L
 
 class ResidualBlock(nn.Module):

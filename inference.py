@@ -147,7 +147,7 @@ class Model:
         Returns:
             Instantiated model
         """
-        if config.model.name not in self.models:
+        if config.model_name not in self.models:
             raise ValueError(f"Invalid model name: {config.model.name}. Available models: {self.models}")
         
         if config.model_name == 'rrdb':
