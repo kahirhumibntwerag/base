@@ -2,7 +2,7 @@ model:
   vae:
     channel_in: 1           # Input image channels
     ch: 64                  # Base channel count
-    blocks: [1, 2, 4, 8]    # Channel multipliers per resolution
+    blocks: [1, 2]    # Channel multipliers per resolution
     latent_channels: 3    # Size of latent dimension
     num_res_blocks: 8       # Number of residual blocks
     norm_type: "gn"         # Normalization type: "bn" for BatchNorm, "gn" for GroupNorm
