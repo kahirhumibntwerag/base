@@ -132,9 +132,12 @@ class Model:
     def __init__(self):
         self.models = ['rrdb', 'esrgan', 'ldm']
     
-    def load_model(self, model_name,checkpoint_path):
+    def load_model(self, model_name, checkpoint_path):
+        """Load the trained model from checkpoint."""
         if model_name == 'rrdb':
             self.model = LightningGenerator.load_from_checkpoint(checkpoint_path)
+        elif model_name == 'esrgan':
+            self.model = GAN.load_from_checkpoint(checkpoint_path)
         else:
             raise ValueError(f"Invalid model name: {model_name}")
         return self.model

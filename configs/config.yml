@@ -15,13 +15,11 @@ data:
 
 callbacks:
   checkpoint:
-    dirpath: "checkpoints/"
-    filename: "rrdb-{epoch:02d}-{val_loss:.2f}"
-    save_top_k: 3
-    monitor: "val_g_loss"
-    mode: "max"
-    save_last: True
+    dirpath: "drive/MyDrive/"
+    filename: "gan-{epoch:02d}"
     every_n_epochs: 10
-  
+    save_top_k: -1  # Keep all checkpoints
+    save_on_train_epoch_end: True
+
   image_logger:
     log_freq: 100  # Log images every 100 batches

@@ -104,12 +104,17 @@ def train():
         logger=wandb_logger,
         callbacks=callbacks
     )
+
+    # Initialize model
     model = Model().instantiate_model(config.model)
 
     datamodule = DataModule(**config.data)
 
-    # Train model
-    trainer.fit(model, datamodule)
+    # Train model, optionally from checkpoint
+    if config.get('checkpoint_path'):
+        trainer.fit(model, datamodule, ckpt_path=config.checkpoint_path)
+    else:
+        trainer.fit(model, datamodule)
 
 if __name__ == "__main__":
     train()

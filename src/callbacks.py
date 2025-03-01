@@ -36,7 +36,7 @@ class ImageLoggingCallback(L.Callback):
                 sr = pl_module.predict(lr)
 
             # Create figure
-            fig, ax = plt.subplots(figsize=(10, 4))
+            fig, ax = plt.subplots(figsize=(15, 10))
             ax.imshow(sr[0].detach().cpu().numpy().squeeze(), cmap='afmhot')
             ax.axis('off')
 
