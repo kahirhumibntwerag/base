@@ -1,0 +1,25 @@
+model:
+  vae:
+    channel_in: 1           # Input image channels
+    ch: 64                  # Base channel count
+    blocks: [1, 2, 4, 8]    # Channel multipliers per resolution
+    latent_channels: 3    # Size of latent dimension
+    num_res_blocks: 8       # Number of residual blocks
+    norm_type: "gn"         # Normalization type: "bn" for BatchNorm, "gn" for GroupNorm
+    deep_model: true        # Whether to use deeper architecture
+    lr: 0.00001              # Learning rate for VAE
+
+    discriminator:
+      in_channels: 1
+      channel_list: [16, 32, 64, 128]
+      lr: 0.000001
+
+    label_smoothing:
+      real_val: 0.9
+      fake_val: 0.1
+
+    loss:
+      alpha: 0.001
+      beta: 1.0
+      gamma: 0.01
+      mu: 0.0000001
