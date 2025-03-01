@@ -9,6 +9,8 @@ import argparse
 from omegaconf import OmegaConf
 from src.rrdb.RRDB import LightningGenerator
 from src.gan.generator import GAN
+from src.ldm.vae import VAEGAN
+from src.ldm.ldm import LDM
 
 class Predictor:
     def __init__(self):
@@ -130,7 +132,7 @@ class Metrics:
 
 class Model:
     def __init__(self):
-        self.models = ['rrdb', 'esrgan', 'ldm']
+        self.models = ['rrdb', 'esrgan', 'vae', 'ldm']
     
     def load_model(self, model_name, checkpoint_path):
         """Load the trained model from checkpoint."""
@@ -138,6 +140,10 @@ class Model:
             self.model = LightningGenerator.load_from_checkpoint(checkpoint_path)
         elif model_name == 'esrgan':
             self.model = GAN.load_from_checkpoint(checkpoint_path)
+        elif model_name == 'vae':
+            self.model = VAEGAN.load_from_checkpoint(checkpoint_path)
+        elif model_name == 'ldm':
+            self.model = LDM.load_from_checkpoint(checkpoint_path)
         else:
             raise ValueError(f"Invalid model name: {model_name}")
         return self.model
@@ -157,6 +163,10 @@ class Model:
             self.model = LightningGenerator(config)
         elif config.model_name == 'esrgan':
             self.model = GAN(config)
+        elif config.model_name == 'vae':
+            self.model = VAEGAN(config)
+        elif config.model_name == 'ldm':
+            self.model = LDM(config)
         else:
             raise ValueError(f"Model {config.model.name} is not yet implemented")
         

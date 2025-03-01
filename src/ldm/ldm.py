@@ -1,0 +1,2 @@
+class LDM:
+    pass
