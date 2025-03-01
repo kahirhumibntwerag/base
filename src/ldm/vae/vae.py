@@ -7,7 +7,7 @@ import lightning as L
 import wandb
 import matplotlib.pyplot as plt
 from src.gan.discriminator import Discriminator
-from src.gan.loss import Loss
+from rrdb.src.ldm.vae.loss import Loss
 import lightning as L
 
 def kl_loss(mu, logvar):

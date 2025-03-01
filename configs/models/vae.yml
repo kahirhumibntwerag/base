@@ -9,17 +9,17 @@ model:
     deep_model: true        # Whether to use deeper architecture
     lr: 0.00001              # Learning rate for VAE
 
-    discriminator:
-      in_channels: 1
-      channel_list: [16, 32, 64, 128]
-      lr: 0.000001
+  discriminator:
+    in_channels: 1
+    channel_list: [16, 32, 64, 128]
+    lr: 0.000001
 
-    label_smoothing:
-      real_val: 0.9
-      fake_val: 0.1
+  label_smoothing:
+    real_val: 0.9
+    fake_val: 0.1
 
-    loss:
-      alpha: 0.001
-      beta: 1.0
-      gamma: 0.01
-      mu: 0.0000001
+  loss:
+    alpha: 0.001
+    beta: 1.0
+    gamma: 0.01
+    mu: 0.0000001

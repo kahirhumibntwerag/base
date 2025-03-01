@@ -14,7 +14,25 @@ from omegaconf import OmegaConf
 from inference import Model
 from src.datamodule import DataModule
 from src.callbacks import ImageLoggingCallback
+def rescale(images):
+    """
+    Rescale a batch of images with respect to the maximum value of each image.
 
+    Parameters:
+    - images (torch.Tensor): A tensor of images with shape [batch_size, channels, height, width].
+
+    Returns:
+    - torch.Tensor: The rescaled images.
+    """
+    # Calculate the maximum value for each image in the batch
+
+    # Avoid division by zero for images with all pixels equal to zero
+
+    # Rescale images by their respective maximum values
+    rescaled_images = images / 20000
+    rescaled_images = (rescaled_images*2) - 1
+
+    return rescaled_images
 def rescalee(images):
     images_clipped = torch.clamp(images, min=1)
     images_log = torch.log(images_clipped)
@@ -33,7 +51,7 @@ def inverse_rescalee(images_normalized):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, required=True, choices=['rrdb', 'esrgan'],
+    parser.add_argument('--model_name', type=str, required=True, choices=['rrdb', 'esrgan', 'vae', 'ldm'],
                       help='Model architecture to use')
     parser.add_argument('--config', type=str, default=None,
                       help='Optional path to override default configs')
@@ -104,11 +122,11 @@ def train():
         logger=wandb_logger,
         callbacks=callbacks
     )
-
+    transform = transforms.Compose([rescale])
     # Initialize model
     model = Model().instantiate_model(config.model)
 
-    datamodule = DataModule(**config.data)
+    datamodule = DataModule(**config.data, transform=transform)
 
     # Train model, optionally from checkpoint
     if config.get('checkpoint_path'):
