@@ -35,10 +35,18 @@ class ImageLoggingCallback(L.Callback):
             with torch.no_grad():
                 sr = pl_module.predict(lr)
 
-            # Create figure
-            fig, ax = plt.subplots(figsize=(15, 10))
-            ax.imshow(sr[0].detach().cpu().numpy().squeeze(), cmap='afmhot')
-            ax.axis('off')
+            # Create figure with two subplots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
+            
+            # Plot HR image
+            ax1.imshow(hr[0].detach().cpu().numpy().squeeze(), cmap='afmhot')
+            ax1.set_title('High Resolution')
+            ax1.axis('off')
+            
+            # Plot SR image
+            ax2.imshow(sr[0].detach().cpu().numpy().squeeze(), cmap='afmhot')
+            ax2.set_title('Super Resolution')
+            ax2.axis('off')
 
             # Save figure to buffer
             buf = io.BytesIO()
@@ -53,10 +61,10 @@ class ImageLoggingCallback(L.Callback):
             # Log to wandb
             wandb_image = wandb.Image(
                 image_np, 
-                caption=f"{prefix}_image_batch_{batch_idx}"
+                caption=f"{prefix}_comparison_batch_{batch_idx}"
             )
             pl_module.logger.experiment.log({
-                f"{prefix}_image_afmhot_batch_{batch_idx}": wandb_image
+                f"{prefix}_comparison_batch_{batch_idx}": wandb_image
             })
 
         except Exception as e:

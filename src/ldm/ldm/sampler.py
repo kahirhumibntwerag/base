@@ -257,14 +257,16 @@ class Runner(object):
 
 
 class Sampler:
-    def __init__(self):
+    def __init__(self, steps, device):
+        self.steps = steps
+        self.device = device
         self.schedule = Schedule()
         self.runner = Runner(self.schedule, self.steps, self.device)
 
-    def sample(self, x, steps, unet, vae):
-        skip = 1000//steps
+    def sample(self, x, unet, vae):
+        skip = 1000//self.steps
         seq = range(0, 1000, skip)
-        noise = torch.randn(size=(x.shape[0], 1, 128, 128), device=x.device)
+        noise = torch.randn(size=(x.shape[0], 3, 128, 128), device=x.device)
         z = self.runner.sample_image(x, noise, seq, unet)
         sr = vae.decoder(z)
         return sr

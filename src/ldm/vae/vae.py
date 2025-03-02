@@ -1,4 +1,3 @@
-
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
@@ -246,39 +245,49 @@ class VAEGAN(L.LightningModule):
         # Add label smoothing parameters
         self.real_label_val = configs['label_smoothing']['real_val']  # Instead of 1.0
         self.fake_label_val = configs['label_smoothing']['fake_val']  # Instead of 0.0
+        # Add warmup steps
+        self.disc_start_step = configs.get('disc_start_step', 10000)  # Default to 50k steps if not specified
+        self.global_step = 0
 
     def training_step(self, batch, batch_idx):
         opt_g, opt_disc = self.optimizers()
+        self.global_step += 1
         
         _, hr = batch
         decoded, mean, logvar = self.vae(hr)
         
-        ###### discriminator #######
-        # Real images with smoothed labels
-        logits_real = self.discriminator(hr.contiguous().detach())
-        real_labels = torch.ones_like(logits_real, device=logits_real.device) * self.real_label_val  # Smoothed to 0.9
-        d_loss_real = self.loss.adversarial_loss(logits_real, real_labels)
+        # Only train discriminator after warmup period
+        if self.global_step >= self.disc_start_step:
+            ###### discriminator #######
+            # Real images with smoothed labels
+            logits_real = self.discriminator(hr.contiguous().detach())
+            real_labels = torch.ones_like(logits_real, device=logits_real.device) * self.real_label_val
+            d_loss_real = self.loss.adversarial_loss(logits_real, real_labels)
 
-        # Fake images with smoothed labels
-        logits_fake = self.discriminator(decoded.contiguous().detach())
-        fake_labels = torch.zeros_like(logits_fake, device=logits_fake.device) + self.fake_label_val  # Smoothed to 0.1
-        d_loss_fake = self.loss.adversarial_loss(logits_fake, fake_labels)
-        
-        d_loss = (d_loss_real + d_loss_fake) / 2
-        self.log('d_loss', d_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+            # Fake images with smoothed labels
+            logits_fake = self.discriminator(decoded.contiguous().detach())
+            fake_labels = torch.zeros_like(logits_fake, device=logits_fake.device) + self.fake_label_val
+            d_loss_fake = self.loss.adversarial_loss(logits_fake, fake_labels)
+            
+            d_loss = (d_loss_real + d_loss_fake) / 2
+            self.log('d_loss', d_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-        opt_disc.zero_grad()
-        self.manual_backward(d_loss)
-        opt_disc.step()
+            opt_disc.zero_grad()
+            self.manual_backward(d_loss)
+            opt_disc.step()
         
         ###### generator #######
-        # For generator training, we still use 1.0 (no smoothing)
-        logits_fake = self.discriminator(decoded)
-        real_labels = torch.ones_like(logits_fake, device=logits_fake.device)  # Keep at 1.0 for generator
-        g_loss = self.loss.adversarial_loss(logits_fake, real_labels)
-        adversarial_component = self.loss.adversarial_weight * g_loss
-        self.log('train_g_loss', g_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        # Only include adversarial loss after warmup period
+        if self.global_step >= self.disc_start_step:
+            logits_fake = self.discriminator(decoded)
+            real_labels = torch.ones_like(logits_fake, device=logits_fake.device)
+            g_loss = self.loss.adversarial_loss(logits_fake, real_labels)
+            adversarial_component = self.loss.adversarial_weight * g_loss
+            self.log('train_g_loss', g_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
+        else:
+            adversarial_component = 0.0
         
+        # Rest of the losses remain unchanged
         l1_loss = self.loss.l1_loss(hr, decoded)
         l1_component = self.loss.l1_weight * l1_loss
         self.log('train_l1_loss', l1_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
@@ -316,8 +325,8 @@ class VAEGAN(L.LightningModule):
         self.log('val_kl_loss', kl_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
-        disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.lr, betas=(0.5, 0.9)) 
-        vae_opt = torch.optim.Adam(self.vae.parameters(), lr=self.vae.lr, betas=(0.5, 0.9)) 
+        disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.lr, betas=(0.5, 0.999)) 
+        vae_opt = torch.optim.Adam(self.vae.parameters(), lr=self.vae.lr, betas=(0.5, 0.999)) 
         return [vae_opt, disc_opt]
     
     def predict(self, x):

@@ -152,8 +152,8 @@ class GAN(L.LightningModule):
         self.log('val_perceptual_loss', perceptual_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
-        disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.lr, betas=(0.5, 0.9)) 
-        vae_opt = torch.optim.Adam(self.generator.parameters(), lr=self.generator.lr, betas=(0.5, 0.9)) 
+        disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.lr, betas=(0.5, 0.999)) 
+        vae_opt = torch.optim.Adam(self.generator.parameters(), lr=self.generator.lr, betas=(0.5, 0.999)) 
         return [vae_opt, disc_opt]
     
     def predict(self, x):

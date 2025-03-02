@@ -48,7 +48,7 @@ class LDM(L.LightningModule):
     
     
     def predict(self, x, steps=50):
-      sr = self.sampler.sample(x, steps, self.unet, self.vae)
+      sr = self.sampler.sample(x, self.unet, self.vae)
       return sr
     
     @classmethod
