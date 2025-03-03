@@ -11,11 +11,25 @@ class Trainer:
         self.callbacks = callbacks or []
         self.device = device
 
-    def _run_callback_hook(self, hook_name, *args, **kwargs):
+    def _run_callback_hook(self, hook_name):
         """Generic method to run callback hooks safely"""
+        state = {
+            'current_epoch': self.current_epoch,
+            'global_step': self.global_step,
+            'device': self.device,
+            'max_epochs': self.max_epochs,
+            'model': self.model,
+            'optimizer': self.optimizer,
+            'train_loader': self.train_loader,
+            'val_loader': self.val_loader,
+            'batch': self.batch,
+            'batch_idx': self.batch_idx,
+            'metrics': self.model.logged_metrics if hasattr(self, 'model') else None,
+        }
+        
         for callback in self.callbacks:
             if hasattr(callback, hook_name) and callable(getattr(callback, hook_name)):
-                getattr(callback, hook_name)(*args, **kwargs)
+                getattr(callback, hook_name)(state)
 
     def _train_epoch(self, model, train_loader):
         """Handle single training epoch"""
@@ -29,13 +43,15 @@ class Trainer:
 
     def _train_step(self, model, batch, batch_idx):
         """Handle single training step"""
-        self._run_callback_hook('on_train_batch_start', model, batch, batch_idx)
+        self.batch = batch
+        self.batch_idx = batch_idx
+        self._run_callback_hook('on_train_batch_start')
         
         batch = batch.to(self.device)
         model.training_step(batch)
         self.global_step += 1
         
-        self._run_callback_hook('on_train_batch_end', model, batch, batch_idx)
+        self._run_callback_hook('on_train_batch_end')
 
     def _validation_epoch(self, model, val_loader):
         """Handle single validation epoch"""
@@ -50,12 +66,12 @@ class Trainer:
 
     def _validation_step(self, model, batch, batch_idx):
         """Handle single validation step"""
-        self._run_callback_hook('on_validation_batch_start', model, batch, batch_idx)
+        self._run_callback_hook('on_validation_batch_start')
         
         batch = batch.to(self.device)
         model.validation_step(batch)
         
-        self._run_callback_hook('on_validation_batch_end', model, batch, batch_idx)
+        self._run_callback_hook('on_validation_batch_end')
 
     def _setup_training(self, model, datamodule):
         """Setup training environment"""
@@ -67,104 +83,74 @@ class Trainer:
     def fit(self, model, datamodule):
         """Main training loop with hooks"""
         try:
-            self.on_fit_start(model, datamodule)
-            train_loader, val_loader = self._setup_training(model, datamodule)
+            # Store references
+            self.model = model
+            self.optimizer = model.configure_optimizers()
+            self.train_loader = datamodule.train_dataloader()
+            self.val_loader = datamodule.val_dataloader()
+            
+            self._run_callback_hook('on_fit_start')
+            model.to(self.device)
 
-            for epoch in trange(self.current_epoch, self.max_epochs, leave=False):
+            for epoch in trange(self.current_epoch, self.max_epochs):
+                self.current_epoch = epoch
+                
                 # Training phase
-                self._train_epoch(model, train_loader)
+                self._train_epoch(model, self.train_loader)
                 
                 # Validation phase
-                self._validation_epoch(model, val_loader)
-                
-                self.current_epoch += 1
+                self._validation_epoch(model, self.val_loader)
 
-            self.on_fit_end(model, datamodule)
+            self._run_callback_hook('on_fit_end')
 
         except Exception as e:
-            self._run_callback_hook('on_exception', model, e)
+            self._run_callback_hook('on_exception')
             raise e
 
     # Hook methods
     def on_fit_start(self, model, datamodule):
         """Called when fit begins"""
-        self._run_callback_hook('on_fit_start', 
-                              model=model, 
-                              datamodule=datamodule)
+        self._run_callback_hook('on_fit_start')
 
     def on_fit_end(self, model, datamodule):
         """Called when fit ends"""
-        self._run_callback_hook('on_fit_end', 
-                              model=model, 
-                              datamodule=datamodule)
+        self._run_callback_hook('on_fit_end')
 
     def on_train_epoch_start(self, model):
         """Called when training epoch begins"""
-        self._run_callback_hook('on_train_epoch_start', 
-                              model=model, 
-                              epoch=self.current_epoch)
+        self._run_callback_hook('on_train_epoch_start')
 
     def on_train_batch_start(self, model, batch, batch_idx):
         """Called before training batch"""
-        self._run_callback_hook('on_train_batch_start', 
-                              model=model, 
-                              batch=batch, 
-                              batch_idx=batch_idx, 
-                              global_step=self.global_step)
+        self._run_callback_hook('on_train_batch_start')
 
     def on_train_batch_end(self, model, batch, batch_idx):
         """Called after training batch"""
-        metrics = model.logged_metrics  # Get the metrics logged during training step
-        self._run_callback_hook('on_train_batch_end', 
-                              model=model, 
-                              batch=batch, 
-                              batch_idx=batch_idx, 
-                              metrics=metrics, 
-                              global_step=self.global_step)
+        self._run_callback_hook('on_train_batch_end')
 
     def on_train_epoch_end(self, model, train_loader):
         """Called when training epoch ends"""
-        metrics = model.logged_metrics
-        self._run_callback_hook('on_train_epoch_end', 
-                              model=model, 
-                              metrics=metrics, 
-                              epoch=self.current_epoch)
+        self._run_callback_hook('on_train_epoch_end')
 
     def on_validation_epoch_start(self, model):
         """Called when validation epoch begins"""
-        self._run_callback_hook('on_validation_epoch_start', 
-                              model=model, 
-                              epoch=self.current_epoch)
+        self._run_callback_hook('on_validation_epoch_start')
 
     def on_validation_batch_start(self, model, batch, batch_idx):
         """Called before validation batch"""
-        self._run_callback_hook('on_validation_batch_start', 
-                              model=model, 
-                              batch=batch, 
-                              batch_idx=batch_idx)
+        self._run_callback_hook('on_validation_batch_start')
 
     def on_validation_batch_end(self, model, batch, batch_idx):
         """Called after validation batch"""
-        metrics = model.logged_metrics
-        self._run_callback_hook('on_validation_batch_end', 
-                              model=model, 
-                              batch=batch, 
-                              batch_idx=batch_idx, 
-                              metrics=metrics)
+        self._run_callback_hook('on_validation_batch_end')
 
     def on_validation_epoch_end(self, model, val_loader):
         """Called when validation epoch ends"""
-        metrics = model.logged_metrics
-        self._run_callback_hook('on_validation_epoch_end', 
-                              model=model, 
-                              metrics=metrics, 
-                              epoch=self.current_epoch)
+        self._run_callback_hook('on_validation_epoch_end')
 
     def on_exception(self, model, exception):
         """Called when an exception occurs"""
-        self._run_callback_hook('on_exception', 
-                              model=model, 
-                              exception=exception)
+        self._run_callback_hook('on_exception')
 
 
 

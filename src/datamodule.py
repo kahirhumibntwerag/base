@@ -30,7 +30,7 @@ class Dataset(Dataset):
         lr_np = self.downsample_image(hr)
         lr = torch.from_numpy(lr_np).unsqueeze(0).float()
             
-        return lr.squeeze(0), hr.squeeze(0)
+        return lr, hr.squeeze(0)
 
 class DataModule(L.LightningDataModule):
     def __init__(

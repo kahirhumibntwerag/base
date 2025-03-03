@@ -53,7 +53,6 @@ class PerceptualLoss(nn.Module):
             loss += torch.nn.functional.l1_loss(target_features[layer], output_features[layer])
 
         return loss
-    
 
 
 

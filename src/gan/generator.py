@@ -129,7 +129,7 @@ class GAN(L.LightningModule):
         l1_component = self.loss.l1_weight * l1_loss
         self.log('train_l1_loss', l1_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-        perceptual_loss = torch.mean(self.loss.perceptual_loss(hr, sr))
+        perceptual_loss = self.loss.perceptual_loss(hr, sr)
         perceptual_component = self.loss.perceptual_weight * perceptual_loss
         self.log('train_perceptual_loss', perceptual_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         
@@ -151,7 +151,7 @@ class GAN(L.LightningModule):
         l1_loss = self.loss.l1_loss(hr, sr)
         self.log('val_l1_loss', l1_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         
-        perceptual_loss = torch.mean(self.loss.perceptual_loss(hr, sr))  
+        perceptual_loss = self.loss.perceptual_loss(hr, sr)  
         self.log('val_perceptual_loss', perceptual_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
