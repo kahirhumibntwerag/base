@@ -2,6 +2,7 @@ import torch
 import lightning as L
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
+from skimage.transform import resize
 
 class Dataset(Dataset):
     def __init__(self, tensors, downsample_factor=1/4, transform=None):
@@ -11,6 +12,11 @@ class Dataset(Dataset):
 
     def __len__(self):
         return len(self.tensors)
+        
+    def downsample_image(self, image):
+        new_height = int(image.shape[2] * self.downsample_factor)
+        new_width = int(image.shape[3] * self.downsample_factor)
+        return resize(image.cpu().numpy().squeeze(), (new_height, new_width), anti_aliasing=True)
 
     def __getitem__(self, idx):        
         hr = self.tensors[idx]
@@ -21,12 +27,8 @@ class Dataset(Dataset):
             hr = self.transform(hr)
         
         hr = hr.float().view(-1, 1, 512, 512)
-        lr = F.interpolate(
-            hr, 
-            size=(int(512*self.downsample_factor), int(512*self.downsample_factor)), 
-            mode='bilinear', 
-            align_corners=False
-        )
+        lr_np = self.downsample_image(hr)
+        lr = torch.from_numpy(lr_np).unsqueeze(0).float()
             
         return lr.squeeze(0), hr.squeeze(0)
 

@@ -9,8 +9,8 @@ import argparse
 from omegaconf import OmegaConf
 from src.rrdb.RRDB import LightningGenerator
 from src.gan.generator import GAN
-from rrdb.src.ldm.vae.vae import VAEGAN
-from rrdb.src.ldm.ldm.ldm import LDM
+from src.ldm.vae.vae import VAEGAN
+from src.ldm.ldm.ldm import LDM
 
 class Predictor:
     def __init__(self):

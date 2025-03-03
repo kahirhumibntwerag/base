@@ -120,8 +120,8 @@ def train():
     trainer = L.Trainer(
         **config.trainer,
         logger=wandb_logger,
-        callbacks=callbacks
-    )
+        callbacks=callbacks,
+                )
     transform = transforms.Compose([rescale])
     # Initialize model
     model = Model().instantiate_model(config.model)
