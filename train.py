@@ -116,18 +116,18 @@ def train():
         ImageLoggingCallback(**config.callbacks.image_logger)
     ]
 
+    transform = None #transforms.Compose([rescale])
+    # Initialize model
+    model = Model().instantiate_model(config.model)
+    wandb_logger.watch(model)
+
+    datamodule = DataModule(**config.data, transform=transform)
     # Initialize trainer
     trainer = L.Trainer(
         **config.trainer,
         logger=wandb_logger,
-        callbacks=callbacks,
-                )
-    transform = transforms.Compose([rescale])
-    # Initialize model
-    model = Model().instantiate_model(config.model)
-
-    datamodule = DataModule(**config.data, transform=transform)
-
+        callbacks=callbacks
+            )
     # Train model, optionally from checkpoint
     if config.get('checkpoint_path'):
         trainer.fit(model, datamodule, ckpt_path=config.checkpoint_path)
