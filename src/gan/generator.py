@@ -44,7 +44,7 @@ class Generator(nn.Module):
     """
     Define the Generator network for solar images with 1 channel
     """
-    def __init__(self, in_channels=1, num_rrdb_blocks=4, lr=1e-4,**kwargs):
+    def __init__(self, in_channels=1, num_rrdb_blocks=4, lr=1e-4, **kwargs):
         super(Generator, self).__init__()
         self.lr = lr
         self.initial = nn.Sequential(

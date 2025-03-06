@@ -2,9 +2,7 @@
  model:
     generator:
       in_channels: 1
-      initial_channel: 64
       num_rrdb_blocks: 4
-      upscale_factor: 4
       lr: 0.0001
 
     discriminator:

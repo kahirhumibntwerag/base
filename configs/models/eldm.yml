@@ -1,0 +1,17 @@
+model:
+  ldm_path: "drive/MyDrive/ldm.ckpt"
+  
+  eldm:
+    discriminator:
+      in_channels: 1
+      channel_list: [32, 64, 128, 256, 512]
+      lr: 0.00005
+
+    label_smoothing:
+      real_val: 0.9
+      fake_val: 0.1
+
+    loss:
+      alpha: 0.001
+      beta: 1.0
+      gamma: 0.01

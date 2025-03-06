@@ -257,7 +257,7 @@ class Runner(object):
 
 
 class Sampler:
-    def __init__(self, steps, device):
+    def __init__(self, steps=50, device='cuda'):
         self.steps = steps
         self.device = device
         self.schedule = Schedule()

@@ -3,12 +3,13 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 import lightning as L
-import wandb
+from src.ldm.vae.vae import VAEGAN
 import matplotlib.pyplot as plt
-from src.gan.discriminator import Discriminator
+from src.gan.discriminator import DiscriminatorSRGAN
 from src.ldm.vae.loss import Loss
+from src.ldm.ldm.sampler import Sampler
 import lightning as L
-
+from src.ldm.ldm.ldm import LDM
 def kl_loss(mu, logvar):
     return -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).mean()
 def get_norm_layer(channels, norm_type="bn"):
@@ -17,7 +18,7 @@ def get_norm_layer(channels, norm_type="bn"):
     elif norm_type == "gn":
         return nn.GroupNorm(8, channels, eps=1e-4)
     else:
-        ValueError("norm_type must be bn or gn")
+        raise ValueError("norm_type must be bn or gn")
 
 
 class ResDown(nn.Module):
@@ -234,27 +235,34 @@ class VAE(nn.Module):
 
 
 
-class VAEGAN(L.LightningModule):
+class ELDM(L.LightningModule):
     def __init__(self, configs):
         super().__init__()
         self.automatic_optimization = False
         self.save_hyperparameters()
-        self.vae = VAE(**configs['vae'])
-        self.discriminator = Discriminator(**configs['discriminator'])
+        self.ldm = LDM.load_from_checkpoint(configs['ldm_path'])
+        self.vae = self.ldm.vae
+        self.unet = self.ldm.unet
+        self.sampler = Sampler()
+        self.discriminator = DiscriminatorSRGAN(**configs['discriminator'])
         self.loss = Loss(self.discriminator,**configs['loss'])
         # Add label smoothing parameters
         self.real_label_val = configs['label_smoothing']['real_val']  # Instead of 1.0
         self.fake_label_val = configs['label_smoothing']['fake_val']  # Instead of 0.0
         # Add warmup steps
-        self.disc_start_step = configs.get('disc_start_step', 10000)  # Default to 50k steps if not specified
+        self.disc_start_step = configs.get('disc_start_step', 0)  # Default to 50k steps if not specified
         self.global_step = 0
-
+        for param in self.unet.parameters():
+            param.requires_grad = False
+        for param in self.vae.encoder.parameters():
+            param.requires_grad = False
+    
     def training_step(self, batch, batch_idx):
         opt_g, opt_disc = self.optimizers()
         self.global_step += 1
         
-        _, hr = batch
-        decoded, mean, logvar = self.vae(hr)
+        lr, hr = batch
+        decoded = self.predict(lr)
         
         # Only train discriminator after warmup period
         if self.global_step >= self.disc_start_step:
@@ -295,20 +303,17 @@ class VAEGAN(L.LightningModule):
         perceptual_loss = torch.mean(self.loss.perceptual_loss(hr, decoded))
         perceptual_component = self.loss.perceptual_weight * perceptual_loss
         self.log('train_perceptual_loss', perceptual_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
-        
-        kl_loss = self.loss.kl_loss(mean, logvar)
-        kl_component = self.loss.kl_weight * kl_loss
-        self.log('train_kl_loss', kl_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-        loss = perceptual_component + l1_component + adversarial_component + kl_component
+
+        loss = perceptual_component + l1_component + adversarial_component
 
         opt_g.zero_grad()
         self.manual_backward(loss)
         opt_g.step()
 
     def validation_step(self, x, batch_idx):
-        _, hr = x
-        decoded, mean, logvar = self.vae(hr)
+        lr, hr = x
+        decoded = self.predict(lr)
         
         logits_fake = self.discriminator(decoded)
         real_labels = torch.ones_like(logits_fake, device=logits_fake.device)
@@ -321,17 +326,15 @@ class VAEGAN(L.LightningModule):
         perceptual_loss = torch.mean(self.loss.perceptual_loss(hr, decoded))  
         self.log('val_perceptual_loss', perceptual_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
-        kl_loss = self.loss.kl_loss(mean, logvar)
-        self.log('val_kl_loss', kl_loss, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
 
     def configure_optimizers(self):
         disc_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.lr, betas=(0.5, 0.999)) 
-        vae_opt = torch.optim.Adam(self.vae.parameters(), lr=self.vae.lr, betas=(0.5, 0.999)) 
+        vae_opt = torch.optim.Adam(self.vae.decoder.parameters(), lr=self.vae.lr, betas=(0.5, 0.999)) 
         return [vae_opt, disc_opt]
     
     def predict(self, x):
-        decoded, _, _ = self.vae(x)
-        return decoded
+      sr = self.sampler.sample(x, self.unet, self.vae)
+      return sr
     
     @classmethod
     def load_from_checkpoint(cls, checkpoint_path, config=None, strict=True, **kwargs):

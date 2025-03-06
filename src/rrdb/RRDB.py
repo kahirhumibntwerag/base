@@ -6,6 +6,8 @@ import lightning as L
 import wandb
 import matplotlib.pyplot as plt
 
+
+
 class ResidualBlock(nn.Module):
     """
     Define a Residual Block without Batch Normalization
@@ -39,32 +41,35 @@ class Generator(nn.Module):
     """
     Define the Generator network for solar images with 1 channel
     """
-    def __init__(self, in_channels=1, initial_channel=64, num_rrdb_blocks=4, upscale_factor=4, lr=1e-4, **kwargs):
+    def __init__(self, in_channels=1, num_rrdb_blocks=4, lr=1e-4, **kwargs):
         super(Generator, self).__init__()
-
         self.lr = lr
-
         self.initial = nn.Sequential(
-            nn.Conv2d(in_channels, initial_channel, kernel_size=9, stride=1, padding=4),
+            nn.Conv2d(in_channels, 64, kernel_size=9, stride=1, padding=4),
             nn.PReLU()
         )
 
         # RRDB blocks
-        self.rrdbs = nn.Sequential(*[RRDB(initial_channel) for _ in range(num_rrdb_blocks)])
+        self.rrdbs = nn.Sequential(*[RRDB(64) for _ in range(num_rrdb_blocks)])
 
         # Post-residual blocks
         self.post_rrdb = nn.Sequential(
-            nn.Conv2d(initial_channel, initial_channel, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.PReLU()
         )
 
         # Upsampling layers
         self.upsampling = nn.Sequential(
-            *[nn.Conv2d(initial_channel, 4*initial_channel, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
             nn.PixelShuffle(2),
-            nn.PReLU()]*int(np.log2(upscale_factor)))
+            nn.PReLU(),
+            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
+            nn.PixelShuffle(2),
+            nn.PReLU()
+        )
+
         # Output layer
-        self.output = nn.Conv2d(initial_channel, in_channels, kernel_size=9, stride=1, padding=4)
+        self.output = nn.Conv2d(64, in_channels, kernel_size=9, stride=1, padding=4)
 
     def forward(self, x):
         initial = self.initial(x)
